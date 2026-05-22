@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { gsap } from "gsap";
 import ArrayGenerator from "@/app/components/ui/randomArray";
 import CustomArrayInput from "@/app/components/ui/customArrayInput";
+import { saveToStorage, loadFromStorage,removeFromStorage, } from "@/utils/storage";
 
 const getFontSize = (value) => {
   const len = String(value).length;
@@ -12,10 +13,24 @@ const getFontSize = (value) => {
 };
 
 const BubbleSortVisualizer = () => {
-  const [array, setArray] = useState([]);
+  
   const [sorting, setSorting] = useState(false);
   const [sorted, setSorted] = useState(false);
-  const [speed, setSpeed] = useState(1);
+  const [array, setArray] = useState(() =>
+    loadFromStorage("bubble-array", [])
+  );
+
+  const [speed, setSpeed] = useState(() =>
+    loadFromStorage("bubble-speed", 1)
+  );
+
+  useEffect(() => {
+    saveToStorage("bubble-array", array);
+  }, [array]);
+
+  useEffect(() => {
+    saveToStorage("bubble-speed", speed);
+  }, [speed]);
   const [comparisons, setComparisons] = useState(0);
   const [swaps, setSwaps] = useState(0);
   const [currentIndices, setCurrentIndices] = useState({ i: -1, j: -1 });
