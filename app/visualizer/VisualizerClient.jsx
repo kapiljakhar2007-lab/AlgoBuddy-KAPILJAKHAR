@@ -375,7 +375,6 @@ function ModuleView({ section, theme, onBack }) {
                 <Link
                   key={ii}
                   href={item.path}
-                  onClick={() => sessionStorage.setItem("visualizerNavigatedToModule", "true")}
                   className="group/item flex items-center justify-between p-4 rounded-xl border
                     bg-white dark:bg-[#2d2f31] dark:border-[#4b5563] hover:shadow-md transition-all duration-200"
                   style={{ borderColor: theme.border }}
@@ -413,19 +412,18 @@ export default function VisualizerClient({ initialSections }) {
   const [activeSection, setActiveSection] = useState(null);
   const [search, setSearch] = useState("");
 
-  // Restore activeSection and scroll position on mount (only if returning from a module page)
+  // Sync state with URL search parameters (category) and restore scroll coordinates
   useEffect(() => {
-    const navigatedToModule = sessionStorage.getItem("visualizerNavigatedToModule");
-    if (navigatedToModule === "true") {
-      // 1. Restore active section
-      const savedSectionTitle = sessionStorage.getItem("visualizerActiveSection");
-      if (savedSectionTitle) {
-        const section = initialSections.find((s) => s.title === savedSectionTitle);
+    const handleUrlState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const category = params.get("category");
+      if (category) {
+        const section = initialSections.find((s) => s.title.toLowerCase() === category.toLowerCase());
         if (section) {
           setActiveSection(section);
 
           // Restore module scroll position
-          const savedModulePos = sessionStorage.getItem("visualizerScrollPosition");
+          const savedModulePos = sessionStorage.getItem("visualizerModuleScrollPosition");
           if (savedModulePos) {
             const scrollPos = parseInt(savedModulePos, 10);
             if (!isNaN(scrollPos) && scrollPos > 0) {
@@ -437,13 +435,15 @@ export default function VisualizerClient({ initialSections }) {
               }, 100);
             }
           }
-          sessionStorage.removeItem("visualizerNavigatedToModule");
           return;
         }
       }
 
-      // 2. Restore grid scroll position if we are on the grid view
-      const savedGridPos = sessionStorage.getItem("visualizerScrollPosition");
+      // If no category parameter, show grid view
+      setActiveSection(null);
+
+      // Restore grid scroll position
+      const savedGridPos = sessionStorage.getItem("visualizerGridScrollPosition");
       if (savedGridPos) {
         const scrollPos = parseInt(savedGridPos, 10);
         if (!isNaN(scrollPos) && scrollPos > 0) {
@@ -455,38 +455,46 @@ export default function VisualizerClient({ initialSections }) {
           }, 100);
         }
       }
-      sessionStorage.removeItem("visualizerNavigatedToModule");
-    } else {
-      // Clear visualizer session cache if visiting the catalog fresh (e.g. from navbar)
-      sessionStorage.removeItem("visualizerActiveSection");
-      sessionStorage.removeItem("visualizerScrollPosition");
-      sessionStorage.removeItem("visualizerGridScrollPosition");
-    }
+    };
+
+    // Run on mount
+    handleUrlState();
+
+    // Listen to browser Back/Forward navigation
+    window.addEventListener("popstate", handleUrlState);
+    return () => window.removeEventListener("popstate", handleUrlState);
   }, [initialSections]);
 
   // Track window scroll position in sessionStorage
   useEffect(() => {
     const handleScroll = () => {
-      sessionStorage.setItem("visualizerScrollPosition", window.scrollY.toString());
+      if (activeSection) {
+        sessionStorage.setItem("visualizerModuleScrollPosition", window.scrollY.toString());
+      } else {
+        sessionStorage.setItem("visualizerGridScrollPosition", window.scrollY.toString());
+      }
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [activeSection]);
 
   const handleCardClick = (section) => {
     // Save grid scroll position before entering the module view
     sessionStorage.setItem("visualizerGridScrollPosition", window.scrollY.toString());
-    sessionStorage.setItem("visualizerActiveSection", section.title);
+    
+    // Update URL to include category search query in browser history
+    window.history.pushState(null, "", `?category=${encodeURIComponent(section.title.toLowerCase())}`);
+    
     // Reset module scroll position to top
-    sessionStorage.setItem("visualizerScrollPosition", "0");
+    sessionStorage.setItem("visualizerModuleScrollPosition", "0");
     
     setActiveSection(section);
     window.scrollTo(0, 0);
   };
 
   const handleBackToGrid = () => {
-    sessionStorage.removeItem("visualizerActiveSection");
-    sessionStorage.removeItem("visualizerScrollPosition");
+    // Revert URL to base visualizer path
+    window.history.pushState(null, "", "/visualizer");
     
     setActiveSection(null);
 
@@ -634,7 +642,6 @@ export default function VisualizerClient({ initialSections }) {
                           <Link
                             key={i}
                             href={item.path}
-                            onClick={() => sessionStorage.setItem("visualizerNavigatedToModule", "true")}
                             className="group/r flex items-center gap-3 p-4 rounded-xl bg-white dark:bg-[#2d2f31] border dark:border-[#4b5563] hover:shadow-md transition-all duration-200"
                             style={{ borderColor: t.border }}
                           >
